@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Exam Question Paper Management System</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; background: #f4f4f4; }
+  h1 { text-align: center; color: #1c2333; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 0; }
+  .tab-btn { flex: 1; padding: 12px; background: #ddd; border: none; cursor: pointer; font-size: 14px; border-radius: 6px 6px 0 0; }
+  .tab-btn.active { background: #fff; font-weight: bold; color: #8a3324; }
+  .tab-content { display: none; background: #fff; border: 1px solid #ddd; border-radius: 0 0 6px 6px; padding: 20px; }
+  .tab-content.active { display: block; }
+  h2 { font-size: 18px; color: #8a3324; border-bottom: 2px solid #8a3324; padding-bottom: 6px; margin-top: 0; }
+  label { display: block; margin-top: 10px; font-size: 13px; color: #555; }
+  input, select, textarea { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+  button { margin-top: 12px; padding: 10px 16px; background: #8a3324; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px; }
+  button:hover { background: #6e2818; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
+  th { background: #f0e6e0; }
+  .msg { margin-top: 10px; padding: 8px; border-radius: 4px; font-size: 13px; }
+  .ok { background: #e6f3e6; color: #2a6b2a; }
+  .err { background: #fae6e6; color: #a33; }
+  .checklist { max-height: 180px; overflow-y: auto; border: 1px solid #ccc; padding: 8px; border-radius: 4px; }
+  .checklist label { display: flex; gap: 6px; font-size: 13px; margin-top: 4px; }
+  .checklist input { width: auto; margin: 0; }
+</style>
+</head>
+<body>
+
+<h1>Exam Question Paper Management System</h1>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('addTab')">Add Question</button>
+  <button class="tab-btn" onclick="showTab('bankTab')">Question Bank</button>
+  <button class="tab-btn" onclick="showTab('csvTab')">Generate Paper (CSV)</button>
+  <button class="tab-btn" onclick="showTab('pdfTab')">Generate PDF</button>
+</div>
+
+<div id="addTab" class="tab-content active">
+  <h2>Add a Question</h2>
+  <label>Topic</label>
+  <input id="topic">
+  <label>Difficulty</label>
+  <select id="difficulty">
+    <option>Easy</option>
+    <option>Medium</option>
+    <option>Hard</option>
+  </select>
+  <label>Marks</label>
+  <input id="marks" type="number" value="5">
+  <label>Question</label>
+  <textarea id="question"></textarea>
+  <label>Answer</label>
+  <textarea id="answer"></textarea>
+  <button onclick="addQuestion()">Add Question</button>
+  <div id="addMsg"></div>
+</div>
+
+<div id="bankTab" class="tab-content">
+  <h2>Question Bank</h2>
+  <label>Filter by Topic</label>
+  <select id="filterTopic" onchange="loadQuestions()"><option value="">All</option></select>
+  <table>
+    <thead><tr><th>ID</th><th>Topic</th><th>Difficulty</th><th>Marks</th><th>Question</th></tr></thead>
+    <tbody id="bankBody"></tbody>
+  </table>
+</div>
+
+<div id="csvTab" class="tab-content">
+  <h2>Generate Exam Paper (CSV)</h2>
+  <label>Exam Name</label>
+  <input id="examNameCsv" placeholder="e.g. Mid Term 2024">
+  <label>Subject</label>
+  <input id="subjectCsv">
+  <label>Teacher Name</label>
+  <input id="teacherCsv">
+  <label>Select Questions for this Paper</label>
+  <div class="checklist" id="csvChecklist"></div>
+  <button onclick="generateCsv()">Save as CSV</button>
+  <div id="csvMsg"></div>
+</div>
+
+<div id="pdfTab" class="tab-content">
+  <h2>Generate Exam Paper (PDF)</h2>
+  <label>Exam Name</label>
+  <input id="examNamePdf" placeholder="e.g. Mid Term 2024">
+  <label>Subject</label>
+  <input id="subjectPdf">
+  <label>College Name</label>
+  <input id="collegePdf" placeholder="e.g. Chandigarh Engineering College">
+  <label>Select Questions for this Paper</label>
+  <div class="checklist" id="pdfChecklist"></div>
+  <button onclick="generatePdf()">Generate PDF</button>
+  <div id="pdfMsg"></div>
+</div>
+
+<script>
+let allQuestions = [];
+
+function showTab(id) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+async function loadQuestions() {
+  const topic = document.getElementById('filterTopic').value;
+  const params = topic ? '?topic=' + encodeURIComponent(topic) : '';
+  const res = await fetch('/questions' + params);
+  allQuestions = await res.json();
+  renderBank();
+  renderChecklist('csvChecklist');
+  renderChecklist('pdfChecklist');
+}
+
+function renderBank() {
+  const tbody = document.getElementById('bankBody');
+  tbody.innerHTML = '';
+  allQuestions.forEach(q => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${q.id}</td><td>${q.topic}</td><td>${q.difficulty}</td><td>${q.marks}</td><td>${q.question}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderChecklist(id) {
+  const box = document.getElementById(id);
+  box.innerHTML = allQuestions.map(q => `
+    <label><input type="checkbox" value="${q.id}"> ${q.id} - ${q.topic} (${q.marks} marks) - ${q.question}</label>
+  `).join('');
+}
+
+async function loadTopics() {
+  const res = await fetch('/topics');
+  const topics = await res.json();
+  const sel = document.getElementById('filterTopic');
+  sel.innerHTML = '<option value="">All</option>' + topics.map(t => `<option>${t}</option>`).join('');
+}
+
+async function addQuestion() {
+  const payload = {
+    topic: document.getElementById('topic').value,
+    difficulty: document.getElementById('difficulty').value,
+    marks: document.getElementById('marks').value,
+    question: document.getElementById('question').value,
+    answer: document.getElementById('answer').value
+  };
+  if (!payload.topic || !payload.question || !payload.answer) {
+    showMsg('addMsg', 'Topic, question and answer are required.', 'err');
+    return;
+  }
+  const res = await fetch('/questions', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  if (res.ok) {
+    showMsg('addMsg', 'Question added.', 'ok');
+    document.getElementById('question').value = '';
+    document.getElementById('answer').value = '';
+    loadTopics();
+    loadQuestions();
+  } else {
+    showMsg('addMsg', 'Could not add question.', 'err');
+  }
+}
+
+function getSelectedIds(checklistId) {
+  return [...document.querySelectorAll('#' + checklistId + ' input:checked')].map(i => i.value);
+}
+
+async function generateCsv() {
+  const ids = getSelectedIds('csvChecklist');
+  const payload = {
+    ids,
+    exam_name: document.getElementById('examNameCsv').value,
+    subject: document.getElementById('subjectCsv').value,
+    teacher: document.getElementById('teacherCsv').value
+  };
+  if (!ids.length) { showMsg('csvMsg', 'Select at least one question.', 'err'); return; }
+  const res = await fetch('/paper', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const data = await res.json();
+  if (res.ok) showMsg('csvMsg', data.message, 'ok');
+  else showMsg('csvMsg', data.error || 'Failed.', 'err');
+}
+
+async function generatePdf() {
+  const ids = getSelectedIds('pdfChecklist');
+  if (!ids.length) { showMsg('pdfMsg', 'Select at least one question.', 'err'); return; }
+
+  const selected = allQuestions.filter(q => ids.includes(q.id));
+  const examName = document.getElementById('examNamePdf').value || 'Exam';
+  const subject = document.getElementById('subjectPdf').value;
+  const college = document.getElementById('collegePdf').value;
+
+  const sections = [{
+    label: 'A',
+    note: 'Attempt all questions.',
+    marks_each: selected.length ? selected[0].marks : 0,
+    total_marks: selected.reduce((s, q) => s + Number(q.marks), 0),
+    questions: selected.map((q, i) => ({
+      qno: String(i + 1),
+      question: q.question,
+      marks: q.marks,
+      bloom: '',
+      co: ''
+    }))
+  }];
+
+  const meta = {
+    college: college || 'College Name',
+    college_sub: '',
+    exam_title: examName,
+    course: '', branch: '', subject: subject, subject_code: '',
+    semester: '', time: '', max_marks: sections[0].total_marks
+  };
+
+  const res = await fetch('/paper/pdf', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ meta, sections }) });
+  const data = await res.json();
+  if (res.ok) {
+    showMsg('pdfMsg', `PDF generated: <a href="/papers/${data.filename}" target="_blank">${data.filename}</a>`, 'ok');
+  } else {
+    showMsg('pdfMsg', data.error || 'Failed to generate PDF.', 'err');
+  }
+}
+
+function showMsg(id, text, kind) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="msg ${kind}">${text}</div>`;
+  setTimeout(() => el.innerHTML = '', 4000);
+}
+
+loadTopics().then(loadQuestions);
+</script>
+
+</body>
+</html>
